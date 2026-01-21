@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海元堂销售网点查询系统 - 客户分配</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f23;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 动态背景 */
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(118, 75, 162, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 40% 60%, rgba(237, 100, 166, 0.1) 0%, transparent 40%),
+                radial-gradient(ellipse at 60% 40%, rgba(72, 219, 251, 0.1) 0%, transparent 40%),
+                linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
+        }
+
+        .background::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(102, 126, 234, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(102, 126, 234, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        .background::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.05) 0%, transparent 70%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+            50% { transform: translate(2%, 2%) scale(1.1); opacity: 0.8; }
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+            position: relative;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #ed64a6);
+            border-radius: 24px 24px 0 0;
+        }
+
+        h1 {
+            text-align: center;
+            color: #1a1a3e;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #8a8a9a;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 16px 24px;
+            border: 2px solid #e8e8f0;
+            border-radius: 16px;
+            font-size: 16px;
+            transition: all 200ms ease;
+            outline: none;
+            background: #f8f9fc;
+            color: #1a1a3e;
+        }
+
+        .search-box input:focus {
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-box input:focus-visible {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-box input::placeholder {
+            color: #9ca3af;
+        }
+
+        .search-box select {
+            padding: 16px 20px;
+            border: 2px solid #e8e8f0;
+            border-radius: 16px;
+            font-size: 16px;
+            background: #f8f9fc;
+            color: #1a1a3e;
+            cursor: pointer;
+            outline: none;
+            transition: all 200ms ease;
+        }
+
+        .search-box select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-box select:focus-visible {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-box button {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 200ms ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .search-box button:hover {
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+        }
+
+        .search-box button:active {
+            transform: scale(0.98);
+        }
+
+        .search-box button:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .result-box {
+            background: linear-gradient(135deg, #f8f9fc 0%, #f0f2f8 100%);
+            border-radius: 20px;
+            padding: 30px;
+            min-height: 200px;
+            border: 1px solid #e8e8f0;
+        }
+
+        .result-box.has-result {
+            background: linear-gradient(135deg, #f0f4ff 0%, #f5f0ff 100%);
+            border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .placeholder {
+            color: #9ca3af;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 15px;
+        }
+
+        .result-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .zone-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .result-row:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            color: #8a8a9a;
+            font-size: 14px;
+        }
+
+        .result-value {
+            color: #1a1a3e;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .manager-name {
+            font-size: 1.1em;
+            color: #667eea;
+        }
+
+        .customer-service {
+            background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-top: 15px;
+            border-left: 4px solid #ffc107;
+        }
+
+        .customer-service .label {
+            color: #856404;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .customer-service .value {
+            color: #856404;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 45px;
+            height: 45px;
+            border: 3px solid #e8e8f0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .examples {
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 1px solid #e8e8f0;
+        }
+
+        .examples h3 {
+            color: #8a8a9a;
+            font-size: 13px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .tag {
+            background: linear-gradient(135deg, #f0f2f8 0%, #e8eaf0 100%);
+            color: #4b5563;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 200ms ease;
+            border: 1px solid #e8e8f0;
+            font-weight: 500;
+        }
+
+        .tag:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .tag:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .error {
+            color: #dc2626;
+            font-size: 1.1em;
+            padding: 20px;
+            background: #fef2f2;
+            border-radius: 12px;
+            border: 1px solid rgba(220, 38, 38, 0.2);
+            text-align: center;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s ease-in-out infinite;
+            border-radius: 8px;
+        }
+
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-badge {
+            height: 32px;
+            width: 120px;
+            margin: 0 auto 20px;
+        }
+
+        .skeleton-row {
+            height: 20px;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .skeleton-row-short {
+            height: 20px;
+            width: 60%;
+            margin: 0 auto;
+        }
+
+        .skeleton-card {
+            height: 120px;
+            width: 100%;
+        }
+
+        .retry-btn {
+            margin-top: 12px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 200ms ease;
+        }
+
+        .retry-btn:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .retry-btn:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .table-view {
+            margin-top: 20px;
+        }
+
+        .table-view table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table-view th,
+        .table-view td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table-view th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+
+        .table-view tr:hover {
+            background: #f8f9fc;
+        }
+
+        .switch-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .switch-tab {
+            padding: 10px 20px;
+            border: 2px solid #e8e8f0;
+            border-radius: 12px;
+            background: white;
+            color: #5a5a6e;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .switch-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 32px 24px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            .customer-card {
+                flex-direction: column;
+                gap: 16px;
+            }
+        }
+
+        @media (min-width: 481px) and (max-width: 768px) {
+            .container {
+                max-width: 650px;
+                padding: 40px 32px;
+            }
+
+            h1 {
+                font-size: 1.6em;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .container {
+                max-width: 700px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+    
+    <div class="container">
+        <h1>
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px; vertical-align: middle; margin-right: 8px;">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            客户分配查询
+        </h1>
+        <p class="subtitle">根据省份查询对应的省区经理和客服信息</p>
+        
+        <div class="search-box">
+            <input type="text" id="queryInput" placeholder="请输入省份名称，如：陕西、广东、江苏..." autocomplete="off">
+            <select id="queryType">
+                <option value="province">按省份查询</option>
+                <option value="manager">按省区经理查询</option>
+                <option value="service">按客服查询</option>
+            </select>
+            <button onclick="searchCustomer()">查询</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>正在查询...</p>
+        </div>
+
+        <div class="result-box" id="resultBox">
+            <p class="placeholder">
+                <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 6px;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                输入省份名称，查询对应的省区经理和客服信息
+            </p>
+        </div>
+
+        <div class="examples">
+            <h3>
+                <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                试试这些省份
+            </h3>
+            <div class="tags">
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('陕西')" onkeypress="handleTagKeypress(event, '陕西')">陕西</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('广东')" onkeypress="handleTagKeypress(event, '广东')">广东</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('江苏')" onkeypress="handleTagKeypress(event, '江苏')">江苏</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('湖北')" onkeypress="handleTagKeypress(event, '湖北')">湖北</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('山东')" onkeypress="handleTagKeypress(event, '山东')">山东</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('四川')" onkeypress="handleTagKeypress(event, '四川')">四川</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('湖南')" onkeypress="handleTagKeypress(event, '湖南')">湖南</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('浙江')" onkeypress="handleTagKeypress(event, '浙江')">浙江</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setQuery(value) {
+            document.getElementById('queryInput').value = value;
+            searchCustomer();
+        }
+
+        async function searchCustomer() {
+            const query = document.getElementById('queryInput').value.trim();
+            const queryType = document.getElementById('queryType').value;
+            const resultBox = document.getElementById('resultBox');
+            const loading = document.getElementById('loading');
+
+            if (!query) {
+                resultBox.classList.remove('has-result');
+                resultBox.innerHTML = '<p class="placeholder"><svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 6px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>输入省份名称，查询对应的省区经理和客服信息</p>';
+                return;
+            }
+
+            loading.classList.add('show');
+            resultBox.classList.remove('has-result');
+            resultBox.innerHTML = `
+                <div class="skeleton skeleton-badge"></div>
+                <div class="skeleton skeleton-card"></div>
+            `;
+
+            try {
+                const response = await fetch(`/api/customer?query=${encodeURIComponent(query)}&type=${queryType}`);
+                const data = await response.json();
+
+                loading.classList.remove('show');
+
+                if (data.success && data.data) {
+                    resultBox.classList.add('has-result');
+
+                    if (queryType === 'service') {
+                        let html = `<div class="zone-badge">${data.data.customer_service} 负责的省区经理</div>`;
+
+                        if (data.data.managers && data.data.managers.length > 0) {
+                            html += '<div class="table-view"><table>';
+                            html += '<tr><th>省区经理</th><th>区域</th></tr>';
+                            for (const manager of data.data.managers) {
+                                html += `<tr><td>${manager.manager}</td><td>${manager.region}</td></tr>`;
+                            }
+                            html += '</table></div>';
+                        }
+
+                        resultBox.innerHTML = html;
+                    } else {
+                        const result = data.data;
+                        let html = `
+                            <div class="zone-badge">${result.zone || '未知区域'}</div>
+                        `;
+
+                        if (queryType === 'province') {
+                            html += `
+                                <div class="result-card">
+                                    <div class="result-row">
+                                        <span class="result-label">省份</span>
+                                        <span class="result-value">${result.province}</span>
+                                    </div>
+                                    <div class="result-row">
+                                        <span class="result-label">负责区域</span>
+                                        <span class="result-value">${result.region}</span>
+                                    </div>
+                                    <div class="result-row">
+                                        <span class="result-label">省区经理</span>
+                                        <span class="result-value manager-name">${result.manager}</span>
+                                    </div>
+                                    <div class="customer-service">
+                                        <div class="label">负责客服</div>
+                                        <div class="value">${result.customer_service}</div>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            html += `
+                                <div class="result-card">
+                                    <div class="result-row">
+                                        <span class="result-label">省区经理</span>
+                                        <span class="result-value manager-name">${result.manager}</span>
+                                    </div>
+                                    <div class="result-row">
+                                        <span class="result-label">负责区域</span>
+                                        <span class="result-value">${result.region}</span>
+                                    </div>
+                                    <div class="result-row">
+                                        <span class="result-label">所属分组</span>
+                                        <span class="result-value">${result.group}</span>
+                                    </div>
+                                    <div class="customer-service">
+                                        <div class="label">负责客服</div>
+                                        <div class="value">${result.customer_service}</div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        resultBox.innerHTML = html;
+                    }
+                } else {
+                    resultBox.classList.remove('has-result');
+                    resultBox.innerHTML = `
+                        <div class="error">
+                            <p>❌ ${data.error || '未找到匹配的记录'}</p>
+                            <button class="retry-btn" onclick="searchCustomer()">重试</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                loading.classList.remove('show');
+                resultBox.classList.remove('has-result');
+                resultBox.innerHTML = `
+                    <div class="error">
+                        <p>❌ 网络错误，请检查网络连接</p>
+                        <button class="retry-btn" onclick="searchCustomer()">重试</button>
+                    </div>
+                `;
+            }
+        }
+
+        document.getElementById('queryInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchCustomer();
+            }
+        });
+
+        function handleTagKeypress(event, value) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setQuery(value);
+            }
+        }
+    </script>
+</body>
+</html>
