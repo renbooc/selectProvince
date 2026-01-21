@@ -1,0 +1,4 @@
+flask>=2.0.0
+requests>=2.25.0
+werkzeug>=1.0.1
+uvicorn>=0.24.0
