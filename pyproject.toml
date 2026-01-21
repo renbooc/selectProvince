@@ -1,0 +1,13 @@
+[project]
+name = "select-province"
+version = "1.0.0"
+description = "海元堂销售网点查询系统"
+requires-python = ">=3.12.0"
+dependencies = [
+    "flask>=2.0.0",
+    "requests>=2.25.0",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
