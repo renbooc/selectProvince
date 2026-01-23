@@ -525,12 +525,12 @@
             </svg>
             客户分配查询
         </h1>
-        <p class="subtitle">根据省份查询对应的省区经理和客服信息</p>
-        
+        <p class="subtitle">根据地区查询对应的省区经理和客服信息</p>
+
         <div class="search-box">
-            <input type="text" id="queryInput" placeholder="请输入省份名称，如：陕西、广东、江苏..." autocomplete="off">
+            <input type="text" id="queryInput" placeholder="请输入地区名称，如：陕西、汉中、龙伏..." autocomplete="off">
             <select id="queryType">
-                <option value="province">按省份查询</option>
+                <option value="province">按地区查询</option>
                 <option value="manager">按省区经理查询</option>
                 <option value="service">按客服查询</option>
             </select>
@@ -548,7 +548,7 @@
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                输入省份名称，查询对应的省区经理和客服信息
+                输入地区名称（省/市/县/镇），查询对应的省区经理和客服信息
             </p>
         </div>
 
@@ -559,12 +559,12 @@
                     <line x1="12" y1="16" x2="12" y2="12"></line>
                     <line x1="12" y1="8" x2="12.01" y2="8"></line>
                 </svg>
-                试试这些省份
+                试试这些地区
             </h3>
             <div class="tags">
                 <span class="tag" role="button" tabindex="0" onclick="setQuery('陕西')" onkeypress="handleTagKeypress(event, '陕西')">陕西</span>
-                <span class="tag" role="button" tabindex="0" onclick="setQuery('广东')" onkeypress="handleTagKeypress(event, '广东')">广东</span>
-                <span class="tag" role="button" tabindex="0" onclick="setQuery('江苏')" onkeypress="handleTagKeypress(event, '江苏')">江苏</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('汉中')" onkeypress="handleTagKeypress(event, '汉中')">汉中</span>
+                <span class="tag" role="button" tabindex="0" onclick="setQuery('龙伏')" onkeypress="handleTagKeypress(event, '龙伏')">龙伏</span>
                 <span class="tag" role="button" tabindex="0" onclick="setQuery('湖北')" onkeypress="handleTagKeypress(event, '湖北')">湖北</span>
                 <span class="tag" role="button" tabindex="0" onclick="setQuery('山东')" onkeypress="handleTagKeypress(event, '山东')">山东</span>
                 <span class="tag" role="button" tabindex="0" onclick="setQuery('四川')" onkeypress="handleTagKeypress(event, '四川')">四川</span>
@@ -588,7 +588,7 @@
 
             if (!query) {
                 resultBox.classList.remove('has-result');
-                resultBox.innerHTML = '<p class="placeholder"><svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 6px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>输入省份名称，查询对应的省区经理和客服信息</p>';
+                resultBox.innerHTML = '<p class="placeholder"><svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 6px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>输入地区名称（省/市/县/镇），查询对应的省区经理和客服信息</p>';
                 return;
             }
 

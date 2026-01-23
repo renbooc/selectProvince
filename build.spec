@@ -1,37 +1,40 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""
-PyInstaller 打包配置
-将销售网点查询系统打包成Windows桌面应用
-"""
-
-from PyInstaller.utils.hooks import collect_all
-from PyInstaller.building.build_main import Analysis, PYZ, EXE
-from PyInstaller.building.datastruct import Tree
+import sys
+import os
 
 block_cipher = None
 
+templates_path = os.path.join(os.getcwd(), 'templates')
+
 a = Analysis(
-    ['app.py'],
-    pathex=['.'],
+    ['app_desktop.py'],
+    pathex=[os.getcwd()],
     binaries=[],
-    datas=[
-        ('templates', 'templates'),
-        ('customer_data.py', '.'),
-        ('local_data.py', '.'),
-    ],
+    datas=[(templates_path, 'templates')],
     hiddenimports=[
-        'requests',
         'flask',
-        'jinja2',
-        'markupsafe',
-        'werkzeug',
-        'click',
-        'itsdangerous',
-        'certifi',
-        'charset_normalizer',
-        'idna',
+        'flask.globals',
+        'flask.json.provider',
+        'requests',
         'urllib3',
         'charset_normalizer',
+        'certifi',
+        'idna',
+        'werkzeug',
+        'markupsafe',
+        'jinja2',
+        'itsdangerous',
+        'click',
+        'webview',
+        'webview.dom',
+        'webview.window',
+        'pywebview',
+        'clr_loader',
+        'pythonnet',
+        'proxy_tools',
+        'bottle',
+        'cffi',
+        'pycparser',
     ],
     hookspath=[],
     hooksconfig={},
@@ -52,18 +55,18 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='销售网点查询系统',
+    name='海元堂查询系统',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # 不显示控制台窗口
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',  # 如果有图标文件
+    icon='icon.ico',
 )

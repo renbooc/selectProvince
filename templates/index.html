@@ -1,314 +1,349 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>海元堂销售网点查询系统</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>海元堂查询系统</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #0f0f23;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            position: relative;
-            overflow-x: hidden;
-        }
+            body {
+                font-family:
+                    "Inter",
+                    -apple-system,
+                    BlinkMacSystemFont,
+                    "Segoe UI",
+                    Roboto,
+                    "Helvetica Neue",
+                    Arial,
+                    sans-serif;
+                background: #0f0f23;
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+                position: relative;
+                overflow-x: hidden;
+            }
 
-        /* 动态背景 */
-        .background {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            background:
-                radial-gradient(ellipse at 20% 20%, rgba(102, 126, 234, 0.12) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, rgba(118, 75, 162, 0.12) 0%, transparent 50%),
-                radial-gradient(ellipse at 40% 60%, rgba(237, 100, 166, 0.08) 0%, transparent 40%),
-                linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
-        }
+            /* 动态背景 */
+            .background {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: -1;
+                background:
+                    radial-gradient(
+                        ellipse at 20% 20%,
+                        rgba(102, 126, 234, 0.12) 0%,
+                        transparent 50%
+                    ),
+                    radial-gradient(
+                        ellipse at 80% 80%,
+                        rgba(118, 75, 162, 0.12) 0%,
+                        transparent 50%
+                    ),
+                    radial-gradient(
+                        ellipse at 40% 60%,
+                        rgba(237, 100, 166, 0.08) 0%,
+                        transparent 40%
+                    ),
+                    linear-gradient(
+                        135deg,
+                        #0f0f23 0%,
+                        #1a1a3e 50%,
+                        #0f0f23 100%
+                    );
+            }
 
-        .background::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image:
-                linear-gradient(rgba(102, 126, 234, 0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(102, 126, 234, 0.02) 1px, transparent 1px);
-            background-size: 60px 60px;
-        }
+            .background::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image:
+                    linear-gradient(
+                        rgba(102, 126, 234, 0.02) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        90deg,
+                        rgba(102, 126, 234, 0.02) 1px,
+                        transparent 1px
+                    );
+                background-size: 60px 60px;
+            }
 
-        .container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            box-shadow:
-                0 25px 50px -12px rgba(0, 0, 0, 0.5),
-                0 0 0 1px rgba(255, 255, 255, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.8);
-            padding: 48px;
-            max-width: 900px;
-            width: 100%;
-            position: relative;
-        }
-
-        .container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2, #ed64a6);
-            border-radius: 24px 24px 0 0;
-        }
-
-        h1 {
-            text-align: center;
-            color: #1a1a3e;
-            margin-bottom: 8px;
-            font-size: 2em;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #6b7280;
-            font-size: 15px;
-            margin-bottom: 48px;
-        }
-
-        /* 功能卡片网格 - Swiss Modernism Design */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 28px;
-            margin-bottom: 40px;
-        }
-
-        .feature-card {
-            background: linear-gradient(135deg, #f8f9fc 0%, #f0f2f8 100%);
-            border: 2px solid #e5e7eb;
-            border-radius: 20px;
-            padding: 40px 36px;
-            text-decoration: none;
-            color: inherit;
-            transition: all 180ms ease;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            opacity: 0;
-            transition: opacity 180ms ease;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 16px 32px rgba(102, 126, 234, 0.25);
-            border-color: rgba(102, 126, 234, 0.4);
-        }
-
-        .feature-card:hover::before {
-            opacity: 1;
-        }
-
-        .feature-card:focus-visible {
-            outline: 3px solid rgba(102, 126, 234, 0.4);
-            outline-offset: 2px;
-        }
-
-        .feature-icon {
-            width: 72px;
-            height: 72px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 24px;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
-            transition: all 180ms ease;
-        }
-
-        .feature-card:hover .feature-icon {
-            transform: scale(1.05);
-            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-        }
-
-        .feature-icon svg {
-            width: 36px;
-            height: 36px;
-            color: white;
-        }
-
-        .feature-title {
-            font-size: 1.35em;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 10px;
-            letter-spacing: -0.25px;
-        }
-
-        .feature-description {
-            color: #6b7280;
-            font-size: 15px;
-            line-height: 1.6;
-        }
-
-        
-
-        /* 响应式设计 - Swiss Modernism */
-        @media (max-width: 768px) {
             .container {
-                padding: 32px 24px;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                border-radius: 24px;
+                box-shadow:
+                    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                    0 0 0 1px rgba(255, 255, 255, 0.1),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+                padding: 48px;
+                max-width: 900px;
+                width: 100%;
+                position: relative;
+            }
+
+            .container::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, #667eea, #764ba2, #ed64a6);
+                border-radius: 24px 24px 0 0;
             }
 
             h1 {
-                font-size: 1.5em;
+                text-align: center;
+                color: #1a1a3e;
+                margin-bottom: 8px;
+                font-size: 2em;
+                font-weight: 700;
+                letter-spacing: -0.5px;
             }
 
             .subtitle {
-                font-size: 14px;
-                margin-bottom: 32px;
+                text-align: center;
+                color: #6b7280;
+                font-size: 15px;
+                margin-bottom: 48px;
             }
 
+            /* 功能卡片 - 单卡片居中设计 */
             .features-grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-                margin-bottom: 32px;
+                display: flex;
+                justify-content: center;
+                margin-bottom: 40px;
             }
 
             .feature-card {
-                padding: 32px 28px;
+                background: linear-gradient(135deg, #f8f9fc 0%, #f0f2f8 100%);
+                border: 2px solid #e5e7eb;
+                border-radius: 20px;
+                padding: 40px 36px;
+                text-decoration: none;
+                color: inherit;
+                transition: all 180ms ease;
+                cursor: pointer;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .feature-card::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, #667eea, #764ba2);
+                opacity: 0;
+                transition: opacity 180ms ease;
+            }
+
+            .feature-card:hover {
+                transform: translateY(-6px);
+                box-shadow: 0 16px 32px rgba(102, 126, 234, 0.25);
+                border-color: rgba(102, 126, 234, 0.4);
+            }
+
+            .feature-card:hover::before {
+                opacity: 1;
+            }
+
+            .feature-card:focus-visible {
+                outline: 3px solid rgba(102, 126, 234, 0.4);
+                outline-offset: 2px;
             }
 
             .feature-icon {
-                width: 64px;
-                height: 64px;
-                margin-bottom: 20px;
+                width: 72px;
+                height: 72px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 24px;
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+                transition: all 180ms ease;
+            }
+
+            .feature-card:hover .feature-icon {
+                transform: scale(1.05);
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
             }
 
             .feature-icon svg {
-                width: 32px;
-                height: 32px;
+                width: 36px;
+                height: 36px;
+                color: white;
             }
 
             .feature-title {
-                font-size: 1.25em;
+                font-size: 1.35em;
+                font-weight: 700;
+                color: #1f2937;
+                margin-bottom: 10px;
+                letter-spacing: -0.25px;
             }
 
             .feature-description {
-                font-size: 14px;
+                color: #6b7280;
+                font-size: 15px;
+                line-height: 1.6;
             }
 
-            .search-box {
-                flex-direction: column;
+            /* 响应式设计 - Swiss Modernism */
+            @media (max-width: 768px) {
+                .container {
+                    padding: 32px 24px;
+                }
+
+                h1 {
+                    font-size: 1.5em;
+                }
+
+                .subtitle {
+                    font-size: 14px;
+                    margin-bottom: 32px;
+                }
+
+                .features-grid {
+                    grid-template-columns: 1fr;
+                    gap: 20px;
+                    margin-bottom: 32px;
+                }
+
+                .feature-card {
+                    padding: 32px 28px;
+                }
+
+                .feature-icon {
+                    width: 64px;
+                    height: 64px;
+                    margin-bottom: 20px;
+                }
+
+                .feature-icon svg {
+                    width: 32px;
+                    height: 32px;
+                }
+
+                .feature-title {
+                    font-size: 1.25em;
+                }
+
+                .feature-description {
+                    font-size: 14px;
+                }
+
+                .search-box {
+                    flex-direction: column;
+                }
+
+                .search-box button {
+                    width: 100%;
+                }
+
+                .customer-card {
+                    flex-direction: column;
+                    gap: 16px;
+                }
             }
 
-            .search-box button {
-                width: 100%;
+            @media (min-width: 769px) and (max-width: 1024px) {
+                .container {
+                    max-width: 800px;
+                    padding: 40px 32px;
+                }
+
+                h1 {
+                    font-size: 1.8em;
+                }
+
+                .features-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 24px;
+                }
+
+                .feature-card {
+                    padding: 36px 32px;
+                }
             }
 
-            .customer-card {
-                flex-direction: column;
-                gap: 16px;
+            @media (min-width: 1025px) {
+                .container {
+                    max-width: 900px;
+                }
+
+                .features-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 28px;
+                }
             }
-        }
+        </style>
+    </head>
+    <body>
+        <div class="background"></div>
 
-        @media (min-width: 769px) and (max-width: 1024px) {
-            .container {
-                max-width: 800px;
-                padding: 40px 32px;
-            }
+        <div class="container">
+            <h1>🏢 海元堂查询系统</h1>
+            <p class="subtitle">
+                一站式查询平台，快速获取省份、客户分配及客户信息
+            </p>
 
-            h1 {
-                font-size: 1.8em;
-            }
-
-            .features-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 24px;
-            }
-
-            .feature-card {
-                padding: 36px 32px;
-            }
-        }
-
-        @media (min-width: 1025px) {
-            .container {
-                max-width: 900px;
-            }
-
-            .features-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 28px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="background"></div>
-
-    <div class="container">
-        <h1>🏢 海元堂销售网点查询系统</h1>
-        <p class="subtitle">一站式查询平台，快速获取省份、客户分配及客户信息</p>
-
-        <!-- 功能卡片导航 -->
-        <div class="features-grid">
-            <a href="/customer" class="feature-card" role="button" tabindex="0">
-                <div class="feature-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                </div>
-                <div class="feature-title">销售网点查询</div>
-                <div class="feature-description">查询省份对应的省区经理和客服信息</div>
-            </a>
-
-            <a href="/customer/search" class="feature-card" role="button" tabindex="0">
-                <div class="feature-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                </div>
-                <div class="feature-title">客户查询</div>
-                <div class="feature-description">根据客户名称关键字查询详细信息</div>
-            </a>
+            <!-- 功能卡片导航 - 只保留客户查询入口 -->
+            <div class="features-grid">
+                <a
+                    href="/customer/search"
+                    class="feature-card"
+                    role="button"
+                    tabindex="0"
+                    style="max-width: 400px"
+                >
+                    <div class="feature-icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                            <path d="M11 8a3 3 0 0 0-3 3"></path>
+                        </svg>
+                    </div>
+                    <div class="feature-title">客户查询</div>
+                    <div class="feature-description">
+                        查询客户信息及销售网点详情
+                    </div>
+                </a>
+            </div>
         </div>
-    </div>
-</body>
+    </body>
 </html>

@@ -1,5 +1,5 @@
 [project]
-name = "select-province"
+name = "海元堂查询系统"
 version = "1.0.0"
 description = "海元堂销售网点查询系统"
 requires-python = ">=3.8"

@@ -26,9 +26,3 @@ CUSTOMER_API_CONFIG = {
 def get_customer_api_config():
     """获取客户API配置"""
     return CUSTOMER_API_CONFIG
-
-
-def update_credentials(username, password):
-    """更新认证凭据"""
-    CUSTOMER_API_CONFIG["credentials"]["username"] = username
-    CUSTOMER_API_CONFIG["credentials"]["password"] = password

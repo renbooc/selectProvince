@@ -7,7 +7,9 @@
 import json
 import logging
 import os
-from datetime import datetime
+import sys
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from flask import Flask, jsonify, render_template, request
@@ -23,17 +25,24 @@ from config_api import get_customer_api_config
 
 # 配置日志
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+
+log_file = os.path.join(os.getcwd(), "app.log")
 logging.basicConfig(
     level=logging.INFO,
     format=LOG_FORMAT,
     handlers=[
-        logging.FileHandler("app.log", encoding="utf-8"),
-        logging.StreamHandler(),
+        logging.FileHandler(log_file, encoding="utf-8"),
+        logging.StreamHandler(sys.stderr),
     ],
 )
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# 记录启动信息
+logger.info(f"应用启动，日志文件: {log_file}")
+logger.info(f"Python版本: {sys.version}")
+logger.info(f"工作目录: {os.getcwd()}")
 
 # ============ API配置 ============
 # 高德地图API密钥（免费申请：https://lbs.amap.com/dev/key）
@@ -94,26 +103,113 @@ def search_with_tencent(keyword):
         return None
 
 
+def get_province_by_adcode(adcode):
+    """
+    通过行政区划代码推断省份
+    行政代码规则：前2位是省份代码
+    例如：430181 -> 43 -> 湖南省
+    """
+    if not adcode or len(adcode) < 2:
+        return None
+
+    # 省级行政代码映射（前2位）
+    province_code_map = {
+        "11": "北京市",
+        "12": "天津市",
+        "13": "河北省",
+        "14": "山西省",
+        "15": "内蒙古自治区",
+        "21": "辽宁省",
+        "22": "吉林省",
+        "23": "黑龙江省",
+        "31": "上海市",
+        "32": "江苏省",
+        "33": "浙江省",
+        "34": "安徽省",
+        "35": "福建省",
+        "36": "江西省",
+        "37": "山东省",
+        "41": "河南省",
+        "42": "湖北省",
+        "43": "湖南省",
+        "44": "广东省",
+        "45": "广西壮族自治区",
+        "46": "海南省",
+        "50": "重庆市",
+        "51": "四川省",
+        "52": "贵州省",
+        "53": "云南省",
+        "54": "西藏自治区",
+        "61": "陕西省",
+        "62": "甘肃省",
+        "63": "青海省",
+        "64": "宁夏回族自治区",
+        "65": "新疆维吾尔自治区",
+    }
+
+    province_code = adcode[:2]
+    return province_code_map.get(province_code)
+
+
+def query_province_by_adcode(adcode):
+    """
+    通过行政区划代码查询完整的省市县信息
+    使用高德API根据adcode查询
+    """
+    if not adcode or not AMAP_KEY:
+        return None
+
+    url = "https://restapi.amap.com/v3/config/district"
+    params = {
+        "key": AMAP_KEY,
+        "keywords": adcode,
+        "subdistrict": 0,
+        "extensions": "base",
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+
+        if data.get("status") == "1" and data.get("districts"):
+            district_info = data["districts"][0]
+            logger.info(
+                f"通过adcode {adcode} 查询到: {district_info.get('name')}, 级别: {district_info.get('level')}"
+            )
+            return district_info
+        return None
+    except Exception as e:
+        logger.error(f"通过adcode查询失败: {e}")
+        return None
+
+
 def parse_amap_result(districts, keyword):
-    """解析高德API返回结果"""
+    """解析高德API返回结果，支持省-市-县-镇-村多级地名"""
     if not districts:
         return None
 
     # 级别映射
-    level_map = {"province": "省级", "city": "市级", "district": "县级"}
+    level_map = {
+        "province": "省级",
+        "city": "市级",
+        "district": "县级",
+        "street": "镇级/街道",
+    }
 
     keyword = keyword.strip()
 
     for district in districts:
         name = district.get("name", "")
         level = district.get("level", "")
+        adcode = district.get("adcode", "")
 
-        # 模糊匹配：支持"汕头"匹配"汕头市"，"祁东"匹配"祁东县"
+        # 模糊匹配：支持"汕头"匹配"汕头市"，"龙伏"匹配"龙伏镇"
         if keyword == name or keyword in name or name in keyword:
             # 初始化变量
             province = ""
             city = ""
             district_name = ""
+            street_name = ""
 
             # 根据级别处理
             if level == "province":
@@ -131,13 +227,48 @@ def parse_amap_result(districts, keyword):
                 city = district.get("city", "")
                 province = district.get("province", "")
 
+            elif level == "street":
+                # 镇级或街道级
+                street_name = name
+                logger.info(f"识别为镇级/街道: {street_name}, adcode={adcode}")
+
+                # 通过adcode推断省份
+                province = get_province_by_adcode(adcode)
+                logger.info(f"通过adcode推断省份: {province}")
+
+                # 如果adcode是6位，尝试查询上级信息
+                if adcode and len(adcode) == 6:
+                    # 县级代码（前4位+00）
+                    county_code = adcode[:4] + "00"
+                    county_info = query_province_by_adcode(county_code)
+                    if county_info:
+                        district_name = county_info.get("name", "")
+                        logger.info(f"查询到县级: {district_name}")
+
+                    # 市级代码（前2位+0000）
+                    city_code = adcode[:2] + "0000"
+                    # 对于直辖市和部分省会，市级代码可能是前4位
+                    if adcode[:2] in ["11", "12", "31", "50"]:  # 北京、天津、上海、重庆
+                        city = province
+                    else:
+                        # 尝试从citycode获取市名
+                        citycode = district.get("citycode", "")
+                        if citycode:
+                            # 使用原始关键字查询本地数据，尝试获取城市名
+                            city_guess = adcode[:4]
+                            city_info = query_province_by_adcode(city_guess + "00")
+                            if city_info and city_info.get("level") == "city":
+                                city = city_info.get("name", "")
+                                logger.info(f"查询到市级: {city}")
+
             # 构建结果
             result = {
                 "province": province,
                 "city": city,
                 "district": district_name,
+                "street": street_name,
                 "level": level_map.get(level, level),
-                "code": district.get("adcode", ""),
+                "code": adcode,
                 "intro": "",
             }
 
@@ -151,80 +282,16 @@ def parse_amap_result(districts, keyword):
                         local_result.get("district", "") or result["district"]
                     )
 
-            # 从本地数据获取简介
-            local_result = get_province_from_local(keyword)
-            if local_result and local_result.get("intro"):
-                result["intro"] = local_result["intro"]
-
-            return result
-
-    return None
-
-    # 级别映射
-    level_map = {"province": "省级", "city": "市级", "district": "县级"}
-
-    for district in districts:
-        name = district.get("name", "")
-        level = district.get("level", "")
-
-        logger.info(f"解析: name={name}, level={level}")
-
-        # 模糊匹配
-        if keyword in name or name in keyword:
-            # 初始化变量
-            province = ""
-            city = ""
-            district_name = ""
-
-            # 根据级别处理
-            if level == "province":
-                # 省级
-                province = name
-                logger.info(f"识别为省级: {province}")
-
-            elif level == "city":
-                # 市级
-                city = name
-                # 高德API返回的市级数据通常不包含province字段
-                # 需要从上级数据获取
-                logger.info(f"识别为市级: {city}")
-
-            elif level == "district":
-                # 区县级
-                district_name = name
-                city = district.get("city", "")
-                province = district.get("province", "")
-                print(
-                    f"[调试] 识别为县级: {district_name}, city={city}, province={province}"
-                )
-
-            # 构建结果
-            result = {
-                "province": province,
-                "city": city,
-                "district": district_name,
-                "level": level_map.get(level, level),
-                "code": district.get("adcode", ""),
-                "intro": "",
-            }
-
-            # 如果没有省份信息，尝试从本地数据获取
-            if not result["province"]:
-                local_result = get_province_from_local(keyword)
-                if local_result:
-                    result["province"] = local_result.get("province", "")
-                    result["city"] = local_result.get("city", "") or result["city"]
-                    result["district"] = (
-                        local_result.get("district", "") or result["district"]
-                    )
-                    logger.info(f"从本地数据补充: province={result['province']}")
+            # 如果还是没有省份，但有adcode，再次尝试通过adcode推断
+            if not result["province"] and adcode:
+                result["province"] = get_province_by_adcode(adcode)
 
             # 从本地数据获取简介
             local_result = get_province_from_local(keyword)
             if local_result and local_result.get("intro"):
                 result["intro"] = local_result["intro"]
 
-            logger.info(f"最终结果: {json.dumps(result, ensure_ascii=False)}")
+            logger.info(f"最终解析结果: {json.dumps(result, ensure_ascii=False)}")
             return result
 
     return None
@@ -331,6 +398,7 @@ def get_province_from_district(district_name):
 
 @app.route("/")
 def index():
+    """首页"""
     return render_template("index.html")
 
 
@@ -342,8 +410,8 @@ def customer():
 
 @app.route("/customer/search")
 def customer_search():
-    """客户名称查询页面"""
-    return render_template("customer_search.html")
+    """客户名称查询页面 - 集成销售网点查询"""
+    return render_template("customer_search_new.html")
 
 
 @app.route("/api/search")
@@ -372,7 +440,7 @@ def api_search():
 def api_customer():
     """
     客户分配表查询接口
-    支持按省份名称、省区经理名称、客服名称查询
+    支持按省份名称、城市名称、省区经理名称、客服名称查询
     """
     query = request.args.get("query", "").strip()
     query_type = request.args.get("type", "province")  # province, manager, service
@@ -383,7 +451,57 @@ def api_customer():
     result = None
 
     if query_type == "province":
+        # 先尝试直接按省份名查询
         result = get_customer_by_province(query)
+
+        # 如果直接查询失败，尝试将输入作为城市名查询，获取其所属省份
+        if not result:
+            logger.info(f"[客户分配] 省份名直接查询失败，尝试作为地区名查询: {query}")
+
+            # 策略1: 使用本地数据查询省份信息
+            local_result = get_province_from_local(query)
+            if local_result and local_result.get("province"):
+                province_name = local_result.get("province")
+                logger.info(f"[客户分配] 本地数据识别出省份: {province_name}")
+                # 用识别出的省份名再次查询
+                result = get_customer_by_province(province_name)
+                if result:
+                    # 更新结果中的字段
+                    result["query_keyword"] = query
+                    result["matched_by"] = "local_data"
+                    result["area_info"] = {
+                        "city": local_result.get("city", ""),
+                        "district": local_result.get("district", ""),
+                        "level": local_result.get("level", ""),
+                    }
+
+            # 策略2: 如果本地数据查询失败，使用高德API
+            if not result and AMAP_KEY:
+                logger.info(f"[客户分配] 本地数据未找到，尝试使用高德API查询: {query}")
+                amap_result = search_with_amap(query)
+                if amap_result:
+                    parsed = parse_amap_result(amap_result, query)
+                    if parsed and parsed.get("province"):
+                        province_name = parsed.get("province")
+                        logger.info(f"[客户分配] 高德API识别出省份: {province_name}")
+                        # 用识别出的省份名再次查询
+                        result = get_customer_by_province(province_name)
+                        if result:
+                            # 更新结果中的字段
+                            result["query_keyword"] = query
+                            result["matched_by"] = "amap_api"
+                            result["area_info"] = {
+                                "province": parsed.get("province", ""),
+                                "city": parsed.get("city", ""),
+                                "district": parsed.get("district", ""),
+                                "street": parsed.get("street", ""),
+                                "level": parsed.get("level", ""),
+                                "adcode": parsed.get("code", ""),
+                            }
+                    else:
+                        logger.warning(f"[客户分配] 高德API未能识别出省份: {query}")
+                else:
+                    logger.warning(f"[客户分配] 高德API未返回结果: {query}")
     elif query_type == "manager":
         result = get_data_by_manager(query)
     elif query_type == "service":
@@ -458,21 +576,16 @@ def api_customer_search():
     # 检查认证凭据是否已配置
     if not credentials.get("access_id") or not credentials.get("secret_key"):
         logger.error("[客户查询] 认证凭据未配置")
-        return jsonify({
-            "success": False,
-            "error": "API认证凭据未配置，请联系管理员配置"
-        })
+        return jsonify(
+            {"success": False, "error": "API认证凭据未配置，请联系管理员配置"}
+        )
 
     try:
         # 步骤1: 获取Token
         logger.info(f"[认证] 正在获取Token...")
         # 使用查询参数传递认证信息
         try:
-            response = requests.post(
-                auth_url,
-                params=credentials,
-                timeout=timeout
-            )
+            response = requests.post(auth_url, params=credentials, timeout=timeout)
             response.raise_for_status()
             auth_result = response.json()
 
@@ -493,20 +606,15 @@ def api_customer_search():
 
             if not token:
                 logger.error(f"[认证] 无法从响应中获取Token: {auth_result}")
-                return jsonify({
-                    "success": False,
-                    "error": "认证失败：无法获取访问令牌"
-                })
+                return jsonify(
+                    {"success": False, "error": "认证失败：无法获取访问令牌"}
+                )
 
             logger.info(f"[认证] Token获取成功")
 
         except Exception as e:
             logger.error(f"[认证] 失败: {e}")
-            return jsonify({
-                "success": False,
-                "error": f"认证失败: {str(e)}"
-            })
-        
+            return jsonify({"success": False, "error": f"认证失败: {str(e)}"})
 
         # 步骤2: 使用Token查询客户信息
         logger.info(f"[客户查询] 关键词: {keyword}")
@@ -514,7 +622,7 @@ def api_customer_search():
         params = {
             "name": keyword,
             "page": 1,
-            "page_size": api_config["default_page_size"]
+            "page_size": api_config["default_page_size"],
         }
 
         # 尝试多种Token传递方式
@@ -528,25 +636,20 @@ def api_customer_search():
         search_data = None
         for i, headers in enumerate(auth_methods):
             try:
-                logger.info(f"[客户查询] 尝试认证方式 {i+1}")
+                logger.info(f"[客户查询] 尝试认证方式 {i + 1}")
                 search_response = requests.get(
-                    search_url,
-                    params=params,
-                    headers=headers,
-                    timeout=timeout
+                    search_url, params=params, headers=headers, timeout=timeout
                 )
                 search_response.raise_for_status()
                 search_data = search_response.json()
-                logger.info(f"[客户查询] 查询成功（认证方式 {i+1}）")
+                logger.info(f"[客户查询] 查询成功（认证方式 {i + 1}）")
                 break
             except Exception as e:
-                logger.warning(f"[客户查询] 认证方式 {i+1} 失败: {e}")
+                logger.warning(f"[客户查询] 认证方式 {i + 1} 失败: {e}")
                 continue
 
         if search_data is None:
             raise Exception("所有认证方式均失败")
-        search_response.raise_for_status()
-        search_data = search_response.json()
 
         # 解析API返回的数据
         customers = []
@@ -579,28 +682,127 @@ def api_customer_search():
             # 如果API返回的是列表
             customers = search_data
 
-        # 标准化客户数据格式
+        # 标准化客户数据格式并添加销售网点信息
         standardized_customers = []
         for customer in customers:
             # API返回的字段映射
+            address = (
+                customer.get("dzhdh")
+                or customer.get("address")
+                or customer.get("contact_address")
+                or customer.get("联系地址")
+                or customer.get("contactAddress")
+                or ""
+            )
+
             standardized = {
-                "customer_id": customer.get("dwbh") or customer.get("customer_id") or customer.get("id") or customer.get("客户ID") or customer.get("customerId"),
-                "customer_code": customer.get("dwbh") or customer.get("customer_code") or customer.get("code") or customer.get("客户编号") or customer.get("customerCode"),
-                "customer_name": customer.get("dwmch") or customer.get("customer_name") or customer.get("name") or customer.get("客户名称") or customer.get("customerName"),
-                "address": customer.get("dzhdh") or customer.get("address") or customer.get("contact_address") or customer.get("联系地址") or customer.get("contactAddress"),
-                "status": customer.get("beactive") or customer.get("status") or customer.get("state") or customer.get("状态") or customer.get("customerStatus"),
-                "jingyfw": customer.get("jingyfw") or customer.get("business_scope") or customer.get("经营范围") or customer.get("businessScope"),
-                "last_updated": customer.get("lastmodifytime") or customer.get("last_updated") or customer.get("update_time") or customer.get("最后更新日期") or customer.get("updatedAt") or customer.get("updateTime"),
+                "customer_id": customer.get("dwbh")
+                or customer.get("customer_id")
+                or customer.get("id")
+                or customer.get("客户ID")
+                or customer.get("customerId"),
+                "customer_code": customer.get("dwbh")
+                or customer.get("customer_code")
+                or customer.get("code")
+                or customer.get("客户编号")
+                or customer.get("customerCode"),
+                "customer_name": customer.get("dwmch")
+                or customer.get("customer_name")
+                or customer.get("name")
+                or customer.get("客户名称")
+                or customer.get("customerName"),
+                "address": address,
+                "status": customer.get("beactive")
+                or customer.get("status")
+                or customer.get("state")
+                or customer.get("状态")
+                or customer.get("customerStatus"),
+                "jingyfw": customer.get("jingyfw")
+                or customer.get("business_scope")
+                or customer.get("经营范围")
+                or customer.get("businessScope"),
+                "last_updated": customer.get("lastmodifytime")
+                or customer.get("last_updated")
+                or customer.get("update_time")
+                or customer.get("最后更新日期")
+                or customer.get("updatedAt")
+                or customer.get("updateTime"),
             }
+
+            # 集成销售网点查询功能
+            # 从地址中提取省份信息，查询对应的省区经理和客服
+            province_info = None
+            sales_network_info = {
+                "province": "",
+                "region": "",
+                "zone": "",
+                "manager": "",
+                "customer_service": "",
+                "matched_by": "none",
+            }
+
+            if address:
+                logger.info(
+                    f"[销售网点查询] 为客户 {standardized.get('customer_name')} 查询地址: {address}"
+                )
+
+                # 策略1: 尝试从本地数据提取省份
+                local_result = get_province_from_local(address)
+                if local_result and local_result.get("province"):
+                    province_name = local_result.get("province")
+                    logger.info(f"[销售网点查询] 本地数据识别出省份: {province_name}")
+                    province_info = get_customer_by_province(province_name)
+                    if province_info:
+                        sales_network_info = {
+                            "province": province_name,
+                            "region": province_info.get("region", ""),
+                            "zone": province_info.get("zone", ""),
+                            "manager": province_info.get("manager", ""),
+                            "customer_service": province_info.get(
+                                "customer_service", ""
+                            ),
+                            "matched_by": "local_data",
+                        }
+
+                # 策略2: 如果本地数据失败，使用高德API
+                if not province_info and AMAP_KEY:
+                    logger.info(f"[销售网点查询] 本地数据未找到，尝试使用高德API")
+                    amap_result = search_with_amap(address)
+                    if amap_result:
+                        parsed = parse_amap_result(amap_result, address)
+                        if parsed and parsed.get("province"):
+                            province_name = parsed.get("province")
+                            logger.info(
+                                f"[销售网点查询] 高德API识别出省份: {province_name}"
+                            )
+                            province_info = get_customer_by_province(province_name)
+                            if province_info:
+                                sales_network_info = {
+                                    "province": province_name,
+                                    "region": province_info.get("region", ""),
+                                    "zone": province_info.get("zone", ""),
+                                    "manager": province_info.get("manager", ""),
+                                    "customer_service": province_info.get(
+                                        "customer_service", ""
+                                    ),
+                                    "matched_by": "amap_api",
+                                }
+
+            # 将销售网点信息添加到客户数据中
+            standardized.update(sales_network_info)
             standardized_customers.append(standardized)
 
-        logger.info(f"[客户查询] 关键词: {keyword}, 找到 {len(standardized_customers)} 条记录")
+        logger.info(
+            f"[客户查询] 关键词: {keyword}, 找到 {len(standardized_customers)} 条记录"
+        )
 
-        return jsonify({
-            "success": True,
-            "data": standardized_customers,
-            "total": len(standardized_customers)
-        })
+        return jsonify(
+            {
+                "success": True,
+                "data": standardized_customers,
+                "total": len(standardized_customers),
+            }
+        )
 
     except requests.exceptions.HTTPError as e:
         logger.error(f"[客户查询] HTTP错误: {e}")
@@ -614,22 +816,13 @@ def api_customer_search():
                     error_msg = error_data["error"]
             except:
                 pass
-        return jsonify({
-            "success": False,
-            "error": error_msg
-        })
+        return jsonify({"success": False, "error": error_msg})
     except requests.exceptions.RequestException as e:
         logger.error(f"[客户查询] 网络错误: {e}")
-        return jsonify({
-            "success": False,
-            "error": f"网络连接失败: {str(e)}"
-        })
+        return jsonify({"success": False, "error": f"网络连接失败: {str(e)}"})
     except Exception as e:
         logger.error(f"[客户查询] 处理失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": f"数据处理失败: {str(e)}"
-        })
+        return jsonify({"success": False, "error": f"数据处理失败: {str(e)}"})
 
 
 @app.route("/api/certificates")
@@ -638,52 +831,53 @@ def api_certificates():
     客户证照查询接口
     根据客户编号查询证照资料
     """
-    customer_code = request.args.get("customer_code", "").strip()
-
-    if not customer_code:
-        return jsonify({"success": False, "error": "请提供客户编号"})
-
-    # 获取API配置
-    api_config = get_customer_api_config()
-    base_url = api_config["base_url"]
-    auth_url = f"{base_url}{api_config['auth_url']}"
-    cert_url = f"{base_url}/api/certificate/list"
-    timeout = api_config["timeout"]
-    credentials = api_config["credentials"]
-
-    # 检查认证凭据
-    if not credentials.get("access_id") or not credentials.get("secret_key"):
-        logger.error("[证照查询] 认证凭据未配置")
-        return jsonify({
-            "success": False,
-            "error": "API认证凭据未配置，请联系管理员配置"
-        })
-
     try:
+        customer_code = request.args.get("customer_code", "").strip()
+        logger.info(f"[证照查询] 开始查询，客户编号: {customer_code}")
+
+        if not customer_code:
+            return jsonify({"success": False, "error": "请提供客户编号"})
+
+        # 获取API配置
+        api_config = get_customer_api_config()
+        base_url = api_config["base_url"]
+        auth_url = f"{base_url}{api_config['auth_url']}"
+        cert_url = f"{base_url}/api/certificate/list"
+        timeout = 30  # 增加超时时间到30秒
+        credentials = api_config["credentials"]
+
+        logger.info(f"[证照查询] API配置: base_url={base_url}, timeout={timeout}")
+
+        # 检查认证凭据
+        if not credentials.get("access_id") or not credentials.get("secret_key"):
+            logger.error("[证照查询] 认证凭据未配置")
+            return jsonify(
+                {"success": False, "error": "API认证凭据未配置，请联系管理员配置"}
+            )
         # 步骤1: 获取Token
         logger.info(f"[证照查询] 正在获取Token...")
-        token_response = requests.post(
-            auth_url,
-            params=credentials,
-            timeout=timeout
-        )
-
-        if token_response.status_code != 200:
-            logger.error(f"[证照查询] Token获取失败: {token_response.status_code}")
-            return jsonify({
-                "success": False,
-                "error": f"认证失败，状态码: {token_response.status_code}"
-            })
+        token_response = requests.post(auth_url, params=credentials, timeout=timeout)
+        token_response.raise_for_status()
 
         token_data = token_response.json()
-        access_token = token_data.get("access_token")
+        logger.info(f"[证照查询] Token响应: {token_data}")
+
+        # 解析Token - 支持多种字段名
+        access_token = None
+        if "token" in token_data:
+            access_token = token_data["token"]
+        elif "access_token" in token_data:
+            access_token = token_data["access_token"]
+        elif "data" in token_data:
+            data = token_data["data"]
+            if isinstance(data, dict):
+                access_token = data.get("token") or data.get("access_token")
+            elif isinstance(data, str):
+                access_token = data
 
         if not access_token:
-            logger.error("[证照查询] Token响应中无access_token")
-            return jsonify({
-                "success": False,
-                "error": "认证失败，未获取到访问令牌"
-            })
+            logger.error(f"[证照查询] 无法从响应中获取Token: {token_data}")
+            return jsonify({"success": False, "error": "认证失败，未获取到访问令牌"})
 
         logger.info("[证照查询] Token获取成功")
 
@@ -691,39 +885,203 @@ def api_certificates():
         logger.info(f"[证照查询] 查询客户 {customer_code} 的证照...")
         headers = {
             "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
-        params = {
-            "dwbh": customer_code,
-            "page": 1,
-            "page_size": 50
-        }
+        params = {"dwbh": customer_code, "page": 1, "page_size": 50}
 
         cert_response = requests.get(
-            cert_url,
-            headers=headers,
-            params=params,
-            timeout=timeout
+            cert_url, headers=headers, params=params, timeout=timeout
         )
 
         if cert_response.status_code != 200:
             logger.error(f"[证照查询] 证照查询失败: {cert_response.status_code}")
-            return jsonify({
-                "success": False,
-                "error": f"证照查询失败，状态码: {cert_response.status_code}"
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"证照查询失败，状态码: {cert_response.status_code}",
+                }
+            )
 
         cert_data = cert_response.json()
+        logger.info(
+            f"[证照查询] 原始API响应数据结构: {type(cert_data)}, keys: {cert_data.keys() if isinstance(cert_data, dict) else 'N/A'}"
+        )
 
-        logger.info(f"[证照查询] 查询成功，找到 {cert_data.get('total', 0)} 条证照记录")
+        # 提取证照列表 - 处理多种可能的数据结构
+        certificates = []
+        if isinstance(cert_data, dict):
+            # 尝试从各种可能的嵌套结构中提取证照列表
+            if "data" in cert_data:
+                data = cert_data["data"]
+                if isinstance(data, list):
+                    certificates = data
+                elif isinstance(data, dict):
+                    # 可能是 {"data": {"list": [...]} } 或 {"data": {"items": [...]} }
+                    certificates = (
+                        data.get("list")
+                        or data.get("items")
+                        or data.get("records")
+                        or data.get("data")
+                        or []
+                    )
+            elif "list" in cert_data:
+                certificates = cert_data["list"]
+            elif "items" in cert_data:
+                certificates = cert_data["items"]
+            elif "records" in cert_data:
+                certificates = cert_data["records"]
+        elif isinstance(cert_data, list):
+            certificates = cert_data
 
-        return jsonify({
+        logger.info(f"[证照查询] 提取到的证照列表长度: {len(certificates)}")
+
+        # 获取当前北京时间
+        try:
+            beijing_tz = ZoneInfo("Asia/Shanghai")
+            current_date = datetime.now(beijing_tz).date()
+        except:
+            # 如果zoneinfo不可用，使用UTC+8
+            current_date = (datetime.utcnow() + timedelta(hours=8)).date()
+
+        logger.info(f"[证照查询] 当前北京时间: {current_date}")
+
+        # 计算证照状态的辅助函数
+        def calculate_cert_status(expire_date_str):
+            """
+            根据有效期计算证照状态
+            返回: (status, status_text, status_class)
+            """
+            if not expire_date_str:
+                return "unknown", "未知", "status-unknown"
+
+            try:
+                # 确保是字符串类型
+                if not isinstance(expire_date_str, str):
+                    expire_date_str = str(expire_date_str)
+
+                expire_date_str = expire_date_str.strip()
+                if not expire_date_str:
+                    return "unknown", "未知", "status-unknown"
+
+                # 尝试解析日期，支持多种格式
+                expire_date = None
+                for date_format in ["%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"]:
+                    try:
+                        expire_date = datetime.strptime(
+                            expire_date_str, date_format
+                        ).date()
+                        break
+                    except (ValueError, TypeError):
+                        continue
+
+                if not expire_date:
+                    # 所有格式都失败
+                    return "unknown", "日期格式错误", "status-unknown"
+
+                # 计算距离过期的天数
+                days_until_expire = (expire_date - current_date).days
+
+                if days_until_expire < 0:
+                    # 已过期
+                    return "expired", "已过期", "status-expired"
+                elif days_until_expire <= 30:
+                    # 一个月内到期
+                    return "one_month", "一个月近效期", "status-one-month"
+                elif days_until_expire <= 90:
+                    # 三个月内到期
+                    return "three_months", "三个月近效期", "status-three-months"
+                else:
+                    # 正常
+                    return "valid", "正常", "status-valid"
+
+            except Exception as e:
+                logger.warning(f"[证照查询] 解析日期失败: {expire_date_str}, 错误: {e}")
+                return "unknown", "未知", "status-unknown"
+
+        # 标准化证照数据格式
+        standardized_certificates = []
+        logger.info(f"[证照查询] 开始处理 {len(certificates)} 条证照数据")
+        for i, cert in enumerate(certificates):
+            try:
+                # 提取有效期
+                valid_date = (
+                    cert.get("expire_date")
+                    or cert.get("yxqz")
+                    or cert.get("expiry_date")
+                    or cert.get("valid_date")
+                    or cert.get("有效期至")
+                    or ""
+                )
+
+                # 计算证照状态
+                status_code, status_text, status_class = calculate_cert_status(valid_date)
+
+                standardized = {
+                    "name": (
+                        cert.get("cert_name")
+                        or cert.get("zlmch")
+                        or cert.get("certificate_name")
+                        or cert.get("name")
+                        or cert.get("证照名称")
+                        or ""
+                    ),
+                    "number": (
+                        cert.get("cert_no")
+                        or cert.get("zlbh")
+                        or cert.get("certificate_number")
+                        or cert.get("number")
+                        or cert.get("证照编号")
+                        or ""
+                    ),
+                    "valid_date": valid_date,
+                    "issue_date": (
+                        cert.get("issue_date")
+                        or cert.get("fzrq")
+                        or cert.get("发证日期")
+                        or ""
+                    ),
+                    "issuer": (
+                        cert.get("issue_org")
+                        or cert.get("fzjg")
+                        or cert.get("issuer")
+                        or cert.get("发证机关")
+                        or ""
+                    ),
+                    "status": status_code,
+                    "status_text": status_text,
+                    "status_class": status_class,
+                }
+                standardized_certificates.append(standardized)
+                logger.info(f"[证照查询] 处理完成第 {i+1}/{len(certificates)} 条证照")
+            except Exception as cert_error:
+                logger.error(f"[证照查询] 处理第 {i+1} 条证照失败: {cert_error}", exc_info=True)
+                # 继续处理下一条
+                continue
+
+        logger.info(
+            f"[证照查询] 客户编号 {customer_code}，找到 {len(standardized_certificates)} 条证照记录"
+        )
+
+        # 构建返回数据
+        response_data = {
             "success": True,
-            "data": cert_data,
-            "total": cert_data.get("total", 0)
-        })
+            "data": standardized_certificates,
+            "total": len(standardized_certificates),
+        }
+        logger.info(f"[证照查询] 准备返回 {len(standardized_certificates)} 条记录")
 
+        try:
+            json_response = jsonify(response_data)
+            logger.info(f"[证照查询] JSON序列化成功")
+            return json_response
+        except Exception as json_error:
+            logger.error(f"[证照查询] JSON序列化失败: {json_error}", exc_info=True)
+            return jsonify({"success": False, "error": f"数据序列化失败: {str(json_error)}"})
+
+    except requests.exceptions.Timeout as e:
+        logger.error(f"[证照查询] 请求超时: {e}")
+        return jsonify({"success": False, "error": "API请求超时，请稍后重试"})
     except requests.exceptions.HTTPError as e:
         logger.error(f"[证照查询] HTTP错误: {e}")
         error_msg = f"API调用失败: {str(e)}"
@@ -734,22 +1092,16 @@ def api_certificates():
                     error_msg = error_data["message"]
             except:
                 pass
-        return jsonify({
-            "success": False,
-            "error": error_msg
-        })
+        return jsonify({"success": False, "error": error_msg})
     except requests.exceptions.RequestException as e:
         logger.error(f"[证照查询] 网络错误: {e}")
-        return jsonify({
-            "success": False,
-            "error": f"网络连接失败: {str(e)}"
-        })
+        return jsonify({"success": False, "error": f"网络连接失败: {str(e)}"})
     except Exception as e:
-        logger.error(f"[证照查询] 处理失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": f"数据处理失败: {str(e)}"
-        })
+        logger.error(f"[证照查询] 处理失败: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"数据处理失败: {str(e)}"})
+    except:
+        logger.error("[证照查询] 发生未知错误", exc_info=True)
+        return jsonify({"success": False, "error": "服务器内部错误"})
 
 
 if __name__ == "__main__":
@@ -766,7 +1118,7 @@ if __name__ == "__main__":
     print("\n启动服务器...")
 
     # 生产环境配置
-    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
+    port = int(os.environ.get("PORT", 5000))
 
     app.run(debug=debug_mode, host="0.0.0.0", port=port)

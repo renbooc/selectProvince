@@ -48,3 +48,6 @@ dist/
 # Secrets
 *.env
 .env.local
+
+# Claude Code
+.claude/
