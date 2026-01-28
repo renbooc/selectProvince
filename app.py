@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session
 
 from customer_data import (
     get_customer_by_province,
@@ -38,6 +38,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = "hai-yuan-tang-secret-key-2024"
 
 # 记录启动信息
 logger.info(f"应用启动，日志文件: {log_file}")
@@ -50,6 +51,109 @@ AMAP_KEY = "b60b67ba5e4ae864a24ee7cb99a2567d"
 
 # 腾讯地图API密钥（免费申请：https://lbs.qq.com/）
 TENCENT_MAP_KEY = ""
+
+# ============ 登录配置 ============
+# 默认登录账户（用户名: 密码）- 备用账户
+LOGIN_USERS = {
+    "admin": "admin123",
+    "hytd": "haiyuan123",
+    # 孙灿 - 使用明文密码登录
+    "孙灿": "123456",
+}
+
+
+def get_employee_list():
+    """从API获取员工列表用于登录验证（遍历所有页面）"""
+    try:
+        api_config = get_customer_api_config()
+        base_url = api_config["base_url"]
+        auth_url = f"{base_url}{api_config['auth_url']}"
+        employee_url = f"{base_url}/api/employee/list"
+        credentials = api_config["credentials"]
+        timeout = api_config["timeout"]
+
+        # 先获取Token
+        response = requests.post(auth_url, params=credentials, timeout=timeout)
+        response.raise_for_status()
+        auth_result = response.json()
+
+        # 解析Token
+        token = None
+        if "token" in auth_result:
+            token = auth_result["token"]
+        elif "access_token" in auth_result:
+            token = auth_result["access_token"]
+        elif "data" in auth_result:
+            data = auth_result["data"]
+            if isinstance(data, dict):
+                token = data.get("token") or data.get("access_token")
+            elif isinstance(data, str):
+                token = data
+
+        if not token:
+            logger.error("[员工列表] 无法获取Token")
+            return []
+
+        # 使用Token获取所有页的员工列表
+        headers = {"Authorization": f"Bearer {token}"}
+        all_employees = []
+        page = 1
+        
+        while True:
+            params = {"page": page, "page_size": 100}
+            response = requests.get(employee_url, headers=headers, params=params, timeout=timeout)
+            response.raise_for_status()
+            result = response.json()
+
+            # 解析员工列表
+            employees = []
+            if isinstance(result, dict) and "items" in result:
+                employees = result.get("items", [])
+            elif isinstance(result, dict) and "data" in result:
+                data = result["data"]
+                if isinstance(data, list):
+                    employees = data
+                elif isinstance(data, dict) and "list" in data:
+                    employees = data["list"]
+            elif isinstance(result, list):
+                employees = result
+
+            if not employees:
+                break
+                
+            all_employees.extend(employees)
+            page += 1
+            
+            # 防止无限循环
+            if page > 50:
+                break
+
+        logger.info(f"[员工列表] 获取到 {len(all_employees)} 条员工记录")
+        return all_employees
+
+    except Exception as e:
+        logger.error(f"[员工列表] 获取失败: {e}")
+        return []
+
+
+def validate_employee_login(username, password):
+    """验证员工登录
+    用户名: dzyname字段值
+    密码: dzycode字段值
+    """
+    employees = get_employee_list()
+
+    for emp in employees:
+        dzyname = emp.get("dzyname", "").strip()
+        dzycode = emp.get("dzycode", "").strip()
+
+        # 用户名和密码都匹配则验证成功
+        if dzyname == username and dzycode == password:
+            logger.info(f"[登录验证] 用户 {username} 验证成功")
+            return True, emp
+
+    logger.warning(f"[登录验证] 用户 {username} 验证失败")
+    return False, None
 
 
 # ============ API调用函数 ============
@@ -398,19 +502,67 @@ def get_province_from_district(district_name):
 
 @app.route("/")
 def index():
-    """首页"""
-    return render_template("index.html")
+    """登录页面"""
+    if session.get("logged_in"):
+        return render_template("customer_search_new.html")
+    return render_template("login.html")
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    """登录API"""
+    data = request.json
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "请输入用户名和密码"})
+
+    success, employee = validate_employee_login(username, password)
+
+    if success:
+        session["logged_in"] = True
+        session["username"] = username
+        session["employee_info"] = employee
+        logger.info(f"用户 {username} 登录成功")
+        return jsonify({"success": True, "message": "登录成功"})
+
+    logger.warning(f"用户 {username} 登录失败")
+    return jsonify({"success": False, "message": "用户名或密码错误"})
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    """登出API"""
+    username = session.get("username")
+    session.clear()
+    if username:
+        logger.info(f"用户 {username} 已登出")
+    return jsonify({"success": True, "message": "已登出"})
+
+
+@app.route("/api/check-login")
+def api_check_login():
+    """检查登录状态API"""
+    return jsonify({
+        "logged_in": session.get("logged_in", False),
+        "username": session.get("username", "")
+    })
 
 
 @app.route("/customer")
 def customer():
     """客户分配查询页面"""
+    if not session.get("logged_in"):
+        return render_template("login.html")
     return render_template("customer.html")
 
 
 @app.route("/customer/search")
 def customer_search():
     """客户名称查询页面 - 集成销售网点查询"""
+    if not session.get("logged_in"):
+        return render_template("login.html")
     return render_template("customer_search_new.html")
 
 
