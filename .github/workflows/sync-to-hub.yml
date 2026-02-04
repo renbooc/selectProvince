@@ -13,11 +13,7 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
-      - name: Install huggingface_hub
-        run: pip install -U huggingface_hub
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          pip install -U huggingface_hub
-          huggingface-cli upload renbooc/hytcrm . --repo-type space --commit-message="Sync from GitHub"
+        run: pip install -U huggingface_hub && python -c "from huggingface_hub import HfApi; HfApi().upload_folder(folder_path='.', repo_id='renbooc/hytcrm', repo_type='space', commit_message='Sync from GitHub')"
