@@ -18,5 +18,4 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git remote set-url space https://renbooc:$HF_TOKEN@huggingface.co/spaces/renbooc/hytcrm.git
-          git push space main
+          git push https://renbooc:$HF_TOKEN@huggingface.co/spaces/renbooc/hytcrm.git main
