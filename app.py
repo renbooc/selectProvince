@@ -37,8 +37,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 app.secret_key = "hai-yuan-tang-secret-key-2024"
+
+import os
+from flask import send_from_directory
+
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(os.getcwd(), "favicon.ico", mimetype="image/vnd.microsoft.icon")
 
 # 记录启动信息
 logger.info(f"应用启动，日志文件: {log_file}")
