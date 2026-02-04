@@ -1,3 +1,15 @@
+---
+title: 销售网点查询系统
+emoji: 📍
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: "4.0.0"
+python_version: "3.10.0"
+app_file: app.py
+pinned: false
+---
+
 # 销售网点查询系统
 
 一个基于Python Flask的Web应用，可以通过城市名称查询对应的中国省份及客户分配信息。
