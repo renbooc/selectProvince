@@ -7,6 +7,7 @@ RUN pip install -r requirements.txt -q
 
 COPY . .
 
-EXPOSE 5000
+ENV PORT=7860
+EXPOSE 7860
 
 CMD ["python", "app.py"]
