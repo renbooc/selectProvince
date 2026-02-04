@@ -1,16 +1,15 @@
 ---
-title: 海元堂查询系统
+title: 海元堂CRM
 emoji: 📍
 colorFrom: blue
 colorTo: green
-sdk: gradio
-sdk_version: "4.0.0"
+sdk: docker
+docker_image: python:3.10-slim
 python_version: "3.10.0"
-app_file: app.py
 pinned: false
 ---
 
-# 海元堂查询系统
+# 海元堂CRM
 
 一个基于Python Flask的Web应用，可以通过城市名称查询对应的中国省份及客户分配信息。
 
